@@ -158,8 +158,11 @@
         const canvas = document.getElementById('xiangqiBoard');
         const ctx = canvas.getContext('2d');
         const COLS = 9, ROWS = 10;
-        const GRID = 60;
-        const PADDING = 40;
+        const GRID = 65; // Tăng kích thước ô một chút
+        const BOARD_WIDTH = (COLS - 1) * GRID;
+        const BOARD_HEIGHT = (ROWS - 1) * GRID;
+        const PADDING_X = (canvas.width - BOARD_WIDTH) / 2;
+        const PADDING_Y = (canvas.height - BOARD_HEIGHT) / 2;
 
         const PIECE_NAMES = {1:'俥',2:'傌',3:'相',4:'仕',5:'帥',6:'炮',7:'兵',
                             8:'車',9:'馬',10:'象',11:'士',12:'將',13:'砲',14:'卒'};
@@ -216,11 +219,11 @@
             return false;
         }
 
-        function isLegalMove(fr, fc, tr, tc) {
-            const testBoard = board.map(row => [...row]);
+        function isLegalMove(fr, fc, tr, tc, b = board, color = turn) {
+            const testBoard = b.map(row => [...row]);
             testBoard[tr][tc] = testBoard[fr][fc];
             testBoard[fr][fc] = 0;
-            return !isInCheck(turn, testBoard);
+            return !isInCheck(color, testBoard);
         }
 
         function getValidMoves(r, c, b = board) {
@@ -329,38 +332,48 @@
             if(depth === 0) return evaluateBoard(b);
             if(maximizing) {
                 let maxEval = -Infinity;
-                for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
-                    if(b[r][c] >= 8) {
-                        getValidMoves(r,c,b).forEach(m => {
-                            if(isLegalMove(r,c,m.r,m.c)) {
-                                const nb = b.map(row=>[...row]);
-                                nb[m.r][m.c] = nb[r][c];
-                                nb[r][c] = 0;
-                                const evalScore = minimax(nb, depth-1, alpha, beta, false);
-                                maxEval = Math.max(maxEval, evalScore);
-                                alpha = Math.max(alpha, evalScore);
-                                if(beta <= alpha) return;
+                for(let r=0; r<ROWS; r++) {
+                    for(let c=0; c<COLS; c++) {
+                        if(b[r][c] >= 8) {
+                            const moves = getValidMoves(r,c,b);
+                            for(let m of moves) {
+                                if(isLegalMove(r,c,m.r,m.c, b, 'BLACK')) {
+                                    const nb = b.map(row=>[...row]);
+                                    nb[m.r][m.c] = nb[r][c];
+                                    nb[r][c] = 0;
+                                    const evalScore = minimax(nb, depth-1, alpha, beta, false);
+                                    maxEval = Math.max(maxEval, evalScore);
+                                    alpha = Math.max(alpha, evalScore);
+                                    if(beta <= alpha) break;
+                                }
                             }
-                        });
+                        }
+                        if(beta <= alpha) break;
                     }
+                    if(beta <= alpha) break;
                 }
                 return maxEval;
             } else {
                 let minEval = Infinity;
-                for(let r=0; r<ROWS; r++) for(let c=0; c<COLS; c++) {
-                    if(b[r][c] <= 7 && b[r][c] > 0) {
-                        getValidMoves(r,c,b).forEach(m => {
-                            if(isLegalMove(r,c,m.r,m.c)) {
-                                const nb = b.map(row=>[...row]);
-                                nb[m.r][m.c] = nb[r][c];
-                                nb[r][c] = 0;
-                                const evalScore = minimax(nb, depth-1, alpha, beta, true);
-                                minEval = Math.min(minEval, evalScore);
-                                beta = Math.min(beta, evalScore);
-                                if(beta <= alpha) return;
+                for(let r=0; r<ROWS; r++) {
+                    for(let c=0; c<COLS; c++) {
+                        if(b[r][c] <= 7 && b[r][c] > 0) {
+                            const moves = getValidMoves(r,c,b);
+                            for(let m of moves) {
+                                if(isLegalMove(r,c,m.r,m.c, b, 'RED')) {
+                                    const nb = b.map(row=>[...row]);
+                                    nb[m.r][m.c] = nb[r][c];
+                                    nb[r][c] = 0;
+                                    const evalScore = minimax(nb, depth-1, alpha, beta, true);
+                                    minEval = Math.min(minEval, evalScore);
+                                    beta = Math.min(beta, evalScore);
+                                    if(beta <= alpha) break;
+                                }
                             }
-                        });
+                        }
+                        if(beta <= alpha) break;
                     }
+                    if(beta <= alpha) break;
                 }
                 return minEval;
             }
@@ -372,8 +385,9 @@
             for(let r=0; r<ROWS; r++) {
                 for(let c=0; c<COLS; c++) {
                     if(board[r][c] >= 8) {
-                        getValidMoves(r,c).forEach(m => {
-                            if(isLegalMove(r,c,m.r,m.c)) {
+                        const moves = getValidMoves(r,c);
+                        for(let m of moves) {
+                            if(isLegalMove(r,c,m.r,m.c, board, 'BLACK')) {
                                 const nb = board.map(row=>[...row]);
                                 nb[m.r][m.c] = nb[r][c];
                                 nb[r][c] = 0;
@@ -383,7 +397,7 @@
                                     bestMove = {from: {r,c}, to: m};
                                 }
                             }
-                        });
+                        }
                     }
                 }
             }
@@ -395,53 +409,61 @@
             ctx.fillStyle = "#d2b48c";
             ctx.fillRect(0, 0, canvas.width, canvas.height);
 
+            // Khung ngoài bàn cờ
+            ctx.strokeStyle = "#3d2b1f";
+            ctx.lineWidth = 4;
+            ctx.strokeRect(PADDING_X - 5, PADDING_Y - 5, BOARD_WIDTH + 10, BOARD_HEIGHT + 10);
+
             ctx.strokeStyle = "#000";
             ctx.lineWidth = 2;
-            for(let i = 0; i <= COLS; i++) {
+            // Vẽ đường dọc
+            for(let i = 0; i < COLS; i++) {
                 ctx.beginPath();
-                ctx.moveTo(PADDING + i*GRID, PADDING);
-                ctx.lineTo(PADDING + i*GRID, PADDING + (ROWS-1)*GRID);
+                ctx.moveTo(PADDING_X + i*GRID, PADDING_Y);
+                ctx.lineTo(PADDING_X + i*GRID, PADDING_Y + BOARD_HEIGHT);
                 ctx.stroke();
             }
+            // Vẽ đường ngang
             for(let i = 0; i < ROWS; i++) {
                 ctx.beginPath();
-                ctx.moveTo(PADDING, PADDING + i*GRID);
-                ctx.lineTo(PADDING + (COLS-1)*GRID, PADDING + i*GRID);
+                ctx.moveTo(PADDING_X, PADDING_Y + i*GRID);
+                ctx.lineTo(PADDING_X + BOARD_WIDTH, PADDING_Y + i*GRID);
                 ctx.stroke();
             }
 
             // River
-            const riverY = PADDING + 4.5 * GRID;
+            const riverY = PADDING_Y + 4.5 * GRID;
             const grad = ctx.createLinearGradient(0, riverY-40, 0, riverY+40);
-            grad.addColorStop(0, "rgba(70,130,180,0.45)");
-            grad.addColorStop(1, "rgba(60,110,170,0.8)");
+            grad.addColorStop(0, "rgba(70,130,180,0.4)");
+            grad.addColorStop(0.5, "rgba(100,180,220,0.6)");
+            grad.addColorStop(1, "rgba(70,130,180,0.4)");
             ctx.fillStyle = grad;
-            ctx.fillRect(PADDING, riverY-35, COLS*GRID, 70);
+            ctx.fillRect(PADDING_X, riverY-GRID/2, BOARD_WIDTH, GRID);
 
-            ctx.fillStyle = "rgba(255,255,255,0.9)";
-            ctx.font = "bold 22px Arial";
+            ctx.fillStyle = "rgba(255,255,255,0.8)";
+            ctx.font = "italic bold 20px 'Times New Roman'";
             ctx.textAlign = "center";
-            ctx.fillText("www.phamhoanganhtokens.com", PADDING + COLS*GRID/2, riverY + 3);
+            ctx.fillText("SỞ HÀ HÁN GIỚI", PADDING_X + BOARD_WIDTH/2, riverY + 7);
 
             // Pieces
             for(let r=0; r<ROWS; r++) {
                 for(let c=0; c<COLS; c++) {
                     const p = board[r][c];
                     if(!p) continue;
-                    const x = PADDING + c*GRID;
-                    const y = PADDING + r*GRID;
+                    const x = PADDING_X + c*GRID;
+                    const y = PADDING_Y + r*GRID;
                     const isSel = selected && selected.r === r && selected.c === c;
 
                     ctx.beginPath();
-                    ctx.arc(x, y, 27, 0, Math.PI*2);
+                    ctx.arc(x, y, 28, 0, Math.PI*2);
                     ctx.fillStyle = "#f5e8c7";
                     ctx.fill();
-                    ctx.strokeStyle = isSel ? "#ffd700" : "#3d2b1f";
-                    ctx.lineWidth = isSel ? 6 : 3.5;
+                    ctx.strokeStyle = isSel ? "#00FFFF" : "#3d2b1f";
+                    ctx.lineWidth = isSel ? 5 : 3;
                     ctx.stroke();
 
                     ctx.fillStyle = p <= 7 ? "#d32f2f" : "#111";
-                    ctx.font = "bold 32px Arial";
+                    ctx.font = "bold 32px 'Times New Roman'";
                     ctx.textAlign = "center";
                     ctx.textBaseline = "middle";
                     ctx.fillText(PIECE_NAMES[p], x, y + 2);
@@ -450,8 +472,8 @@
 
             possibleMoves.forEach(m => {
                 ctx.beginPath();
-                ctx.arc(PADDING + m.c*GRID, PADDING + m.r*GRID, 11, 0, Math.PI*2);
-                ctx.fillStyle = "rgba(0,255,100,0.7)";
+                ctx.arc(PADDING_X + m.c*GRID, PADDING_Y + m.r*GRID, 10, 0, Math.PI*2);
+                ctx.fillStyle = "rgba(0,255,255,0.6)";
                 ctx.fill();
             });
         }
@@ -462,8 +484,8 @@
             const rect = canvas.getBoundingClientRect();
             const x = e.clientX - rect.left;
             const y = e.clientY - rect.top;
-            const c = Math.round((x - PADDING)/GRID);
-            const r = Math.round((y - PADDING)/GRID);
+            const c = Math.round((x - PADDING_X)/GRID);
+            const r = Math.round((y - PADDING_Y)/GRID);
             if(r<0||r>=ROWS||c<0||c>=COLS) return;
 
             if(selected) {
@@ -489,11 +511,18 @@
         }
 
         function executeMove(fr, fc, tr, tc) {
-            const captured = board[tr][tc];
-            historyMoves.push({from:{r:fr,c:fc}, to:{r:tr,c:tc}, piece:board[fr][fc]});
+            const piece = board[fr][fc];
+            if (!piece) return; // Sửa lỗi undefined nếu click nhầm quân cờ đã đi
 
-            board[tr][tc] = board[fr][fc];
+            const captured = board[tr][tc];
+            historyMoves.push({from:{r:fr,c:fc}, to:{r:tr,c:tc}, piece:piece});
+
+            board[tr][tc] = piece;
             board[fr][fc] = 0;
+
+            // Reset trạng thái sau khi đi
+            selected = null;
+            possibleMoves = [];
 
             if(captured) playSound('capture');
             else playSound('move');
@@ -510,7 +539,7 @@
             if(isAiMode && turn === 'BLACK' && !isGameOver) {
                 isAiThinking = true;
                 document.getElementById('status-msg').innerHTML = "AI đang suy nghĩ...";
-                setTimeout(aiTurn, 300);
+                setTimeout(aiTurn, 400);
             }
         }
 
@@ -555,13 +584,29 @@
             if(historyMoves.length === 0 || isAiThinking) return;
             if(isAiMode && historyMoves.length >= 2) historyMoves.pop(), historyMoves.pop();
             else historyMoves.pop();
-            initBoard();
+            
+            board = [
+                [8,9,10,11,12,11,10,9,8],
+                [0,0,0,0,0,0,0,0,0],
+                [0,13,0,0,0,0,0,13,0],
+                [14,0,14,0,14,0,14,0,14],
+                [0,0,0,0,0,0,0,0,0],
+                [0,0,0,0,0,0,0,0,0],
+                [7,0,7,0,7,0,7,0,7],
+                [0,6,0,0,0,0,0,6,0],
+                [0,0,0,0,0,0,0,0,0],
+                [1,2,3,4,5,4,3,2,1]
+            ];
             historyMoves.forEach(m => {
                 board[m.to.r][m.to.c] = board[m.from.r][m.from.c];
                 board[m.from.r][m.from.c] = 0;
             });
             turn = historyMoves.length % 2 === 0 ? 'RED' : 'BLACK';
+            isGameOver = false;
+            selected = null;
+            possibleMoves = [];
             document.getElementById('turn-status').innerHTML = `Lượt: ${turn === 'RED' ? 'Đỏ' : 'Đen'}`;
+            document.getElementById('status-msg').innerHTML = "Sẵn sàng";
             updateHistory();
             drawBoard();
         }
