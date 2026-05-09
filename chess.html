@@ -35,6 +35,9 @@
             border-radius: 12px;
             box-shadow: 0 0 40px rgba(0, 255, 255, 0.15);
         }
+        .custom-scroll::-webkit-scrollbar { width: 4px; }
+        .custom-scroll::-webkit-scrollbar-track { background: rgba(255,255,255,0.05); }
+        .custom-scroll::-webkit-scrollbar-thumb { background: rgba(0,255,255,0.3); border-radius: 10px; }
     </style>
 </head>
 <body class="font-sans antialiased">
@@ -49,7 +52,7 @@
 
     <!-- Navigation -->
     <nav class="fixed top-0 w-full z-50 px-6 py-8 flex justify-between items-center mix-blend-difference">
-        <div class="text-2xl font-serif tracking-tighter">AI Software Development</div>
+        <div class="text-2xl font-serif tracking-tighter">AI CHƠI CỜ TƯỚNG</div>
         <a href="#game" class="px-6 py-2 border border-white/20 hover:bg-white hover:text-black transition-all font-serif text-sm uppercase tracking-widest">
             Chơi Cờ Tướng AI
         </a>
@@ -63,7 +66,7 @@
                     AI<br><span class="ml-[10%] italic">Cờ Tướng</span>
                 </h1>
                 <p class="text-xl md:text-2xl font-serif text-white/80 max-w-2xl">
-                    Trải nghiệm Cờ Tướng đỉnh cao với AI được huấn luyện chuyên sâu. Dù bạn là người mới hay kỳ thủ lâu năm, Tướng AI luôn mang đến đối thủ xứng tầm. Phân tích nước đi thông minh, kho thế cờ khổng lồ và giao diện Việt Nam hiện đại.
+                    A cinematic digital experience where the fluidity of intelligence meets high-tech precision.
                 </p>
             </div>
         </div>
@@ -85,10 +88,15 @@
                         <div class="flex flex-col md:flex-row gap-8">
                             <!-- Sidebar -->
                             <div class="w-full md:w-72 flex flex-col gap-6">
-                                <div class="liquid-glass p-6 rounded-xl">
+                                <div class="liquid-glass p-6 rounded-xl relative overflow-hidden">
                                     <div class="text-cyan-400 font-bold text-2xl mb-1" id="turn-status">Lượt: Đỏ</div>
                                     <div id="status-msg" class="text-emerald-400 font-medium text-lg">Sẵn sàng</div>
-                                    <div class="text-teal-400 text-sm mt-4" id="ai-info">AI: Minimax Lv.4</div>
+                                    <div class="flex items-center gap-2 mt-4">
+                                        <div class="text-red-500 font-mono text-2xl font-bold" id="timer">60s</div>
+                                        <div class="text-teal-400 text-sm" id="ai-info">AI: Minimax Lv.4</div>
+                                    </div>
+                                    <!-- Thanh thời gian chạy ngược -->
+                                    <div id="timer-bar" class="absolute bottom-0 left-0 h-1 bg-red-500 transition-all duration-1000" style="width: 100%"></div>
                                 </div>
 
                                 <div class="grid grid-cols-2 gap-3">
@@ -98,9 +106,9 @@
                                     <button onclick="changeAILevel()" id="ai-level-btn" class="col-span-2 bg-zinc-800 py-4 rounded-xl font-semibold hover:bg-zinc-700 transition">AI Lv: 4</button>
                                 </div>
 
-                                <div class="liquid-glass p-5 rounded-xl flex-1 flex flex-col">
+                                <div class="liquid-glass p-5 rounded-xl h-[300px] flex flex-col">
                                     <div class="text-white/70 mb-3 text-sm">Lịch sử nước đi</div>
-                                    <div id="history" class="flex-1 overflow-y-auto text-sm font-mono text-white/80 space-y-1 pr-2"></div>
+                                    <div id="history" class="flex-1 overflow-y-auto text-sm font-mono text-white/80 space-y-1 pr-2 custom-scroll"></div>
                                 </div>
                             </div>
 
@@ -169,6 +177,7 @@
 
         let board = [], selected = null, possibleMoves = [], turn = 'RED';
         let isAiMode = true, aiLevel = 4, historyMoves = [], isGameOver = false, isAiThinking = false;
+        let timeLeft = 60, timerInterval = null;
 
         // ==================== INIT BOARD ====================
         function initBoard() {
@@ -192,6 +201,39 @@
             document.getElementById('status-msg').innerHTML = "Sẵn sàng";
             updateHistory();
             drawBoard();
+            resetTimer();
+        }
+
+        function resetTimer() {
+            clearInterval(timerInterval);
+            if (isGameOver) return;
+            timeLeft = 60;
+            updateTimerUI();
+            timerInterval = setInterval(() => {
+                timeLeft--;
+                updateTimerUI();
+                if (timeLeft <= 0) {
+                    clearInterval(timerInterval);
+                    handleTimeout();
+                }
+            }, 1000);
+        }
+
+        function updateTimerUI() {
+            const timerEl = document.getElementById('timer');
+            const barEl = document.getElementById('timer-bar');
+            timerEl.innerText = timeLeft + 's';
+            barEl.style.width = (timeLeft / 60 * 100) + '%';
+            if (timeLeft <= 10) timerEl.classList.add('animate-pulse');
+            else timerEl.classList.remove('animate-pulse');
+        }
+
+        function handleTimeout() {
+            isGameOver = true;
+            const loser = turn === 'RED' ? 'Đỏ' : 'Đen';
+            const winner = turn === 'RED' ? 'Đen' : 'Đỏ';
+            document.getElementById('status-msg').innerHTML = `<span class="text-red-500 font-bold">${loser} hết thời gian! ${winner} thắng!</span>`;
+            playSound('gameover');
         }
 
         // ==================== GAME LOGIC ====================
@@ -536,10 +578,15 @@
             drawBoard();
             checkGameOver();
 
-            if(isAiMode && turn === 'BLACK' && !isGameOver) {
-                isAiThinking = true;
-                document.getElementById('status-msg').innerHTML = "AI đang suy nghĩ...";
-                setTimeout(aiTurn, 400);
+            if (!isGameOver) {
+                resetTimer();
+                if(isAiMode && turn === 'BLACK') {
+                    isAiThinking = true;
+                    document.getElementById('status-msg').innerHTML = "AI đang suy nghĩ...";
+                    setTimeout(aiTurn, 400);
+                }
+            } else {
+                clearInterval(timerInterval);
             }
         }
 
@@ -557,13 +604,14 @@
                     if(p && ((turn==='RED' && p<=7) || (turn==='BLACK' && p>=8))) {
                         const moves = getValidMoves(r,c);
                         for(let m of moves) {
-                            if(isLegalMove(r,c,m.r,m.c)) { hasMove = true; break; }
+                            if(isLegalMove(r,c,m.r,m.c, board, turn)) { hasMove = true; break; }
                         }
                     }
                 }
             }
             if(!hasMove) {
                 isGameOver = true;
+                clearInterval(timerInterval);
                 const winner = turn === 'RED' ? 'Đen' : 'Đỏ';
                 document.getElementById('status-msg').innerHTML = `<span class="text-red-500 font-bold">${winner} thắng!</span>`;
                 playSound('gameover');
@@ -577,7 +625,8 @@
                 const color = i%2===0 ? '🔴' : '⚫';
                 return `<div>${num}. ${color} ${PIECE_NAMES[m.piece]}</div>`;
             }).join('');
-            div.scrollTop = div.scrollHeight;
+            // Đảm bảo cuộn xuống cuối sau khi DOM cập nhật
+            setTimeout(() => { div.scrollTop = div.scrollHeight; }, 10);
         }
 
         function undo() {
@@ -609,6 +658,7 @@
             document.getElementById('status-msg').innerHTML = "Sẵn sàng";
             updateHistory();
             drawBoard();
+            resetTimer();
         }
 
         function resetGame() { initBoard(); }
