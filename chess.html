@@ -103,7 +103,7 @@
                                     <button onclick="resetGame()" class="bg-white text-black py-4 rounded-xl font-semibold hover:bg-cyan-400 transition">Ván Mới</button>
                                     <button onclick="undo()" class="bg-zinc-700 py-4 rounded-xl font-semibold hover:bg-zinc-600 transition">Hoàn Bước</button>
                                     <button onclick="toggleMode()" id="mode-btn" class="col-span-2 bg-zinc-800 py-4 rounded-xl font-semibold hover:bg-zinc-700 transition">Chế độ: Đấu Máy</button>
-                                    <button onclick="changeAILevel()" id="ai-level-btn" class="col-span-2 bg-zinc-800 py-4 rounded-xl font-semibold hover:bg-zinc-700 transition">AI Lv: 4</button>
+                                    <button onclick="changeAILevel()" id="ai-level-btn" class="col-span-2 bg-zinc-800 py-4 rounded-xl font-semibold hover:bg-zinc-700 transition">AI: Trung bình</button>
                                 </div>
 
                                 <div class="liquid-glass p-5 rounded-xl h-[300px] flex flex-col">
@@ -210,11 +210,16 @@
             timeLeft = 60;
             updateTimerUI();
             timerInterval = setInterval(() => {
-                timeLeft--;
-                updateTimerUI();
-                if (timeLeft <= 0) {
-                    clearInterval(timerInterval);
-                    handleTimeout();
+                // Nếu AI đang suy nghĩ ở cấp độ cao, chúng ta vẫn cần giảm thời gian
+                // Tuy nhiên setInterval có thể bị delay, nên ta dùng timestamp nếu cần chính xác tuyệt đối
+                // Ở đây ta đơn giản hóa bằng cách trừ dần
+                if (!isGameOver) {
+                    timeLeft--;
+                    updateTimerUI();
+                    if (timeLeft <= 0) {
+                        clearInterval(timerInterval);
+                        handleTimeout();
+                    }
                 }
             }, 1000);
         }
@@ -583,7 +588,8 @@
                 if(isAiMode && turn === 'BLACK') {
                     isAiThinking = true;
                     document.getElementById('status-msg').innerHTML = "AI đang suy nghĩ...";
-                    setTimeout(aiTurn, 400);
+                    // Sử dụng requestAnimationFrame hoặc setTimeout cực ngắn để UI kịp cập nhật trước khi AI chạy
+                    setTimeout(aiTurn, 50);
                 }
             } else {
                 clearInterval(timerInterval);
@@ -668,9 +674,22 @@
             resetGame();
         }
         function changeAILevel() {
-            aiLevel = (aiLevel === 4) ? 5 : (aiLevel === 5) ? 3 : 4;
-            document.getElementById('ai-level-btn').innerText = `AI Lv: ${aiLevel}`;
-            document.getElementById('ai-info').innerHTML = `AI: Minimax Lv.${aiLevel}`;
+            if (aiLevel === 3) {
+                aiLevel = 4;
+                updateAILevelUI("Trung bình");
+            } else if (aiLevel === 4) {
+                aiLevel = 5;
+                updateAILevelUI("Khó");
+            } else {
+                aiLevel = 3;
+                updateAILevelUI("Dễ");
+            }
+            resetGame();
+        }
+
+        function updateAILevelUI(label) {
+            document.getElementById('ai-level-btn').innerText = `AI: ${label}`;
+            document.getElementById('ai-info').innerHTML = `AI: ${label}`;
         }
 
         // Start Game
